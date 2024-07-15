@@ -20,7 +20,9 @@ const { default: rateLimit } = require('express-rate-limit');
 const cronjobs = require('./utils/cron-file');
 const http = require('http');
 const socketIo = require('socket.io');
-
+const fs = require('fs');
+const path = require('path');
+const rfs = require('rotating-file-stream');
 
 
 dotenv.config();
@@ -37,12 +39,28 @@ app.use(express.urlencoded({ extended: true }));
 
 // Enable CORS
 app.use(cors({
-    origin: 'http://127.0.0.1:5173',
+    origin: 'http://localhost:5173',
     credentials: true
 }));
+// or app.use(cors());
+
+app.options('*', cors()) // include before other routes
+
 
 // HTTP request logger middleware
-app.use(morgan('dev'));
+
+//enter log into the file
+//create access.log file in root folder and appends log into the file by adding the flags as 'a'
+// var accessLogStream = fs.createWriteStream(path.join(__dirname, 'app.log'), { flags: 'a' });
+
+// create a rotating write stream 
+//creates log folder and inside this it will create log file, file will be rotated every day coz interval is 1d
+var accessLogStream = rfs.createStream('app.log', {
+    interval: '1d', // rotate daily
+    path: path.join(__dirname, 'log')
+})
+app.use(morgan('combined', { stream: accessLogStream }));  // combined, dev, common, short, tiny
+// or custom like ':method :url :response-time'
 
 // Security middleware to set various HTTP headers
 app.use(helmet());
@@ -69,7 +87,6 @@ app.use('/api/auth', authRoutes);
 app.use(authenticator); // Custom authentication middleware
 
 
-
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 
@@ -81,29 +98,29 @@ app.use('/api/sapiens', sapiensRoutes);
 app.use(notFound); // Catch all undefined routes
 app.use(errorHandler); // Handle errors
 
-const serverForSocket = http.createServer(app);
-const io = socketIo(serverForSocket, {
-    cors: {
-        origin: "http://127.0.0.1:5173", // React app address
-        methods: ["GET", "POST"],
-        credentials: true
-    }
-});
+// const serverForSocket = http.createServer(app);
+// const io = socketIo(serverForSocket, {
+//     cors: {
+//         origin: "http://localhost:5173", // React app address
+//         methods: ["GET", "POST"],
+//         credentials: true
+//     }
+// });
 
-io.on('connection', (socket) => {
-    console.log('New client connected');
+// io.on('connection', (socket) => {
+//     console.log('New client connected');
 
-    // Handle messages from client
-    socket.on('message', (data) => {
-        console.log('Message received:', data);
-        io.emit('message', data); // Broadcast the message to all clients
-    });
+//     // Handle messages from client
+//     socket.on('message', (data) => {
+//         console.log('Message received:', data);
+//         io.emit('message', data); // Broadcast the message to all clients
+//     });
 
-    // Handle disconnection
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
-});
+//     // Handle disconnection
+//     socket.on('disconnect', () => {
+//         console.log('Client disconnected');
+//     });
+// });
 
 const PORT = process.env.PORT || 5000;
 
